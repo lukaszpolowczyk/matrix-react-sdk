@@ -16,8 +16,7 @@ limitations under the License.
 
 import React, { createRef, SyntheticEvent, MouseEvent } from "react";
 import ReactDOM from "react-dom";
-import highlight from "highlight.js";
-import { MsgType } from "matrix-js-sdk/src/@types/event";
+import { MsgType } from "matrix-js-sdk/src/matrix";
 
 import * as HtmlUtils from "../../../HtmlUtils";
 import { formatDate } from "../../../DateUtils";
@@ -196,7 +195,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             const { close } = ContextMenu.createMenu(GenericTextContextMenu, {
                 ...toRightOf(buttonRect, 0),
                 chevronFace: ChevronFace.None,
-                message: successful ? _t("Copied!") : _t("Failed to copy"),
+                message: successful ? _t("common|copied") : _t("error|failed_copy"),
             });
             button.onmouseleave = close;
         };
@@ -237,7 +236,9 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         pre.append(document.createElement("span"));
     }
 
-    private highlightCode(code: HTMLElement): void {
+    private async highlightCode(code: HTMLElement): Promise<void> {
+        const { default: highlight } = await import("highlight.js");
+
         if (code.textContent && code.textContent.length > MAX_HIGHLIGHT_LENGTH) {
             console.log(
                 "Code block is bigger than highlight limit (" +
@@ -388,6 +389,14 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             return false;
         }
 
+        const url = node.getAttribute("href");
+        const host = url?.match(/^https?:\/\/(.*?)(\/|$)/)?.[1];
+
+        // never preview permalinks (if anything we should give a smart
+        // preview of the room/user they point to: nobody needs to be reminded
+        // what the matrix.to site looks like).
+        if (!host || isPermalinkHost(host)) return false;
+
         // as a random heuristic to avoid highlighting things like "foo.pl"
         // we require the linked text to either include a / (either from http://
         // or from a full foo.bar/baz style schemeless URL) - or be a markdown-style
@@ -396,14 +405,6 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         if (node.textContent?.includes("/")) {
             return true;
         }
-
-        const url = node.getAttribute("href");
-        const host = url?.match(/^https?:\/\/(.*?)(\/|$)/)?.[1];
-
-        // never preview permalinks (if anything we should give a smart
-        // preview of the room/user they point to: nobody needs to be reminded
-        // what the matrix.to site looks like).
-        if (!host || isPermalinkHost(host)) return false;
 
         if (node.textContent?.toLowerCase().trim().startsWith(host.toLowerCase())) {
             // it's a "foo.pl" style link
@@ -490,18 +491,13 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             const completeUrl = scalarClient.getStarterLink(starterLink);
             const integrationsUrl = integrationManager!.uiUrl;
             Modal.createDialog(QuestionDialog, {
-                title: _t("Add an Integration"),
+                title: _t("timeline|scalar_starter_link|dialog_title"),
                 description: (
                     <div>
-                        {_t(
-                            "You are about to be taken to a third-party site so you can " +
-                                "authenticate your account for use with %(integrationsUrl)s. " +
-                                "Do you wish to continue?",
-                            { integrationsUrl: integrationsUrl },
-                        )}
+                        {_t("timeline|scalar_starter_link|dialog_description", { integrationsUrl: integrationsUrl })}
                     </div>
                 ),
-                button: _t("Continue"),
+                button: _t("action|continue"),
                 onFinished(confirmed) {
                     if (!confirmed) {
                         return;
@@ -528,8 +524,8 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
 
         const tooltip = (
             <div>
-                <div className="mx_Tooltip_title">{_t("Edited at %(date)s", { date: dateString })}</div>
-                <div className="mx_Tooltip_sub">{_t("Click to view edits")}</div>
+                <div className="mx_Tooltip_title">{_t("timeline|edits|tooltip_title", { date: dateString })}</div>
+                <div className="mx_Tooltip_sub">{_t("timeline|edits|tooltip_sub")}</div>
             </div>
         );
 
@@ -537,10 +533,10 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             <AccessibleTooltipButton
                 className="mx_EventTile_edited"
                 onClick={this.openHistoryDialog}
-                title={_t("Edited at %(date)s. Click to view edits.", { date: dateString })}
+                title={_t("timeline|edits|tooltip_label", { date: dateString })}
                 tooltip={tooltip}
             >
-                <span>{`(${_t("edited")})`}</span>
+                <span>{`(${_t("common|edited")})`}</span>
             </AccessibleTooltipButton>
         );
     }
@@ -557,9 +553,9 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
                 throw new Error("renderPendingModerationMarker should only be applied to hidden messages");
             case false:
                 if (visibility.reason) {
-                    text = _t("Message pending moderation: %(reason)s", { reason: visibility.reason });
+                    text = _t("timeline|pending_moderation_reason", { reason: visibility.reason });
                 } else {
-                    text = _t("Message pending moderation");
+                    text = _t("timeline|pending_moderation");
                 }
                 break;
         }

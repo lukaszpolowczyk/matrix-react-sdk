@@ -19,7 +19,8 @@ import React from "react";
 import ReactDOM from "react-dom";
 import classNames from "classnames";
 import { defer, sleep } from "matrix-js-sdk/src/utils";
-import { TypedEventEmitter } from "matrix-js-sdk/src/models/typed-event-emitter";
+import { TypedEventEmitter } from "matrix-js-sdk/src/matrix";
+import { Glass } from "@vector-im/compound-web";
 
 import dis from "./dispatcher/dispatcher";
 import AsyncWrapper from "./AsyncWrapper";
@@ -29,9 +30,11 @@ const DIALOG_CONTAINER_ID = "mx_Dialog_Container";
 const STATIC_DIALOG_CONTAINER_ID = "mx_Dialog_StaticContainer";
 
 // Type which accepts a React Component which looks like a Modal (accepts an onFinished prop)
-export type ComponentType = React.ComponentType<{
-    onFinished(...args: any): void;
-}>;
+export type ComponentType =
+    | React.ComponentType<{
+          onFinished(...args: any): void;
+      }>
+    | React.ComponentType<any>;
 
 // Generic type which returns the props of the Modal component with the onFinished being optional.
 export type ComponentProps<C extends ComponentType> = Defaultize<
@@ -372,7 +375,9 @@ export class ModalManager extends TypedEventEmitter<ModalManagerEvent, HandlerMa
 
             const staticDialog = (
                 <div className={classes}>
-                    <div className="mx_Dialog">{this.staticModal.elem}</div>
+                    <Glass className="mx_Dialog_border">
+                        <div className="mx_Dialog">{this.staticModal.elem}</div>
+                    </Glass>
                     <div
                         data-testid="dialog-background"
                         className="mx_Dialog_background mx_Dialog_staticBackground"
@@ -395,7 +400,9 @@ export class ModalManager extends TypedEventEmitter<ModalManagerEvent, HandlerMa
 
             const dialog = (
                 <div className={classes}>
-                    <div className="mx_Dialog">{modal.elem}</div>
+                    <Glass className="mx_Dialog_border">
+                        <div className="mx_Dialog">{modal.elem}</div>
+                    </Glass>
                     <div
                         data-testid="dialog-background"
                         className="mx_Dialog_background"

@@ -14,7 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { EventType, MatrixClient, MatrixEvent, Room, RoomMember } from "matrix-js-sdk/src/matrix";
+import {
+    EventType,
+    HistoryVisibility,
+    JoinRule,
+    MatrixClient,
+    MatrixEvent,
+    Room,
+    RoomMember,
+} from "matrix-js-sdk/src/matrix";
+import { KnownMembership } from "matrix-js-sdk/src/types";
 import { render } from "@testing-library/react";
 import { ReactElement } from "react";
 import { Mocked, mocked } from "jest-mock";
@@ -410,7 +419,7 @@ describe("TextForEvent", () => {
         });
 
         it("returns correct message for redacted poll start", () => {
-            pollEvent.makeRedacted(pollEvent);
+            pollEvent.makeRedacted(pollEvent, new Room(pollEvent.getRoomId()!, mockClient, mockClient.getSafeUserId()));
 
             expect(textForEvent(pollEvent, mockClient)).toEqual("@a: Message deleted");
         });
@@ -436,7 +445,10 @@ describe("TextForEvent", () => {
         });
 
         it("returns correct message for redacted message", () => {
-            messageEvent.makeRedacted(messageEvent);
+            messageEvent.makeRedacted(
+                messageEvent,
+                new Room(messageEvent.getRoomId()!, mockClient, mockClient.getSafeUserId()),
+            );
 
             expect(textForEvent(messageEvent, mockClient)).toEqual("@a: Message deleted");
         });
@@ -496,12 +508,12 @@ describe("TextForEvent", () => {
                         type: "m.room.member",
                         sender: "@a:foo",
                         content: {
-                            membership: "join",
+                            membership: KnownMembership.Join,
                             avatar_url: "b",
                             displayname: "Bob",
                         },
                         prev_content: {
-                            membership: "join",
+                            membership: KnownMembership.Join,
                             avatar_url: "a",
                             displayname: "Andy",
                         },
@@ -511,5 +523,99 @@ describe("TextForEvent", () => {
                 ),
             ).toMatchInlineSnapshot(`"Andy changed their display name and profile picture"`);
         });
+    });
+
+    describe("textForJoinRulesEvent()", () => {
+        type TestCase = [string, { result: string }];
+        const testCases: TestCase[] = [
+            [JoinRule.Public, { result: "@a made the room public to whoever knows the link." }],
+            [JoinRule.Invite, { result: "@a made the room invite only." }],
+            [JoinRule.Knock, { result: "@a changed the join rule to ask to join." }],
+            [JoinRule.Restricted, { result: "@a changed who can join this room." }],
+        ];
+
+        it.each(testCases)("returns correct message when room join rule changed to %s", (joinRule, { result }) => {
+            expect(
+                textForEvent(
+                    new MatrixEvent({
+                        type: "m.room.join_rules",
+                        sender: "@a",
+                        content: {
+                            join_rule: joinRule,
+                        },
+                        state_key: "",
+                    }),
+                    mockClient,
+                ),
+            ).toEqual(result);
+        });
+
+        it(`returns correct JSX message when room join rule changed to ${JoinRule.Restricted}`, () => {
+            expect(
+                textForEvent(
+                    new MatrixEvent({
+                        type: "m.room.join_rules",
+                        sender: "@a",
+                        content: {
+                            join_rule: JoinRule.Restricted,
+                        },
+                        state_key: "",
+                    }),
+                    mockClient,
+                    true,
+                ),
+            ).toMatchSnapshot();
+        });
+
+        it("returns correct default message", () => {
+            expect(
+                textForEvent(
+                    new MatrixEvent({
+                        type: "m.room.join_rules",
+                        sender: "@a",
+                        content: {
+                            join_rule: "a not implemented one",
+                        },
+                        state_key: "",
+                    }),
+                    mockClient,
+                ),
+            ).toEqual("@a changed the join rule to a not implemented one");
+        });
+    });
+
+    describe("textForHistoryVisibilityEvent()", () => {
+        type TestCase = [string, { result: string }];
+        const testCases: TestCase[] = [
+            [
+                HistoryVisibility.Invited,
+                { result: "@a made future room history visible to all room members, from the point they are invited." },
+            ],
+            [
+                HistoryVisibility.Joined,
+                { result: "@a made future room history visible to all room members, from the point they joined." },
+            ],
+            [HistoryVisibility.Shared, { result: "@a made future room history visible to all room members." }],
+            [HistoryVisibility.WorldReadable, { result: "@a made future room history visible to anyone." }],
+        ];
+
+        it.each(testCases)(
+            "returns correct message when room join rule changed to %s",
+            (historyVisibility, { result }) => {
+                expect(
+                    textForEvent(
+                        new MatrixEvent({
+                            type: "m.room.history_visibility",
+                            sender: "@a",
+                            content: {
+                                history_visibility: historyVisibility,
+                            },
+                            state_key: "",
+                        }),
+                        mockClient,
+                    ),
+                ).toEqual(result);
+            },
+        );
     });
 });

@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { IDelegatedAuthConfig } from "matrix-js-sdk/src/client";
-import { ValidatedIssuerConfig } from "matrix-js-sdk/src/oidc/validate";
+import { OidcClientConfig } from "matrix-js-sdk/src/matrix";
 
 export interface ValidatedServerConfig {
     hsUrl: string;
@@ -30,5 +29,11 @@ export interface ValidatedServerConfig {
 
     warning: string | Error;
 
-    delegatedAuthentication?: IDelegatedAuthConfig & ValidatedIssuerConfig;
+    /**
+     * Config related to delegated authentication
+     * Included when delegated auth is configured and valid, otherwise undefined.
+     * From issuer's .well-known/openid-configuration.
+     * Used for OIDC native flow authentication.
+     */
+    delegatedAuthentication?: OidcClientConfig;
 }

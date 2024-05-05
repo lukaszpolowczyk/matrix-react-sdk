@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { createRef, ReactNode } from "react";
-import { Room } from "matrix-js-sdk/src/models/room";
+import { Room } from "matrix-js-sdk/src/matrix";
 
 import { MatrixClientPeg } from "../../MatrixClientPeg";
 import defaultDispatcher from "../../dispatcher/dispatcher";
@@ -258,16 +258,35 @@ export default class UserMenu extends React.Component<IProps, IState> {
         ev.preventDefault();
         ev.stopPropagation();
 
-        const cli = MatrixClientPeg.get();
-        if (!cli || !cli.isCryptoEnabled() || !(await cli.exportRoomKeys())?.length) {
-            // log out without user prompt if they have no local megolm sessions
-            defaultDispatcher.dispatch({ action: "logout" });
-        } else {
+        if (await this.shouldShowLogoutDialog()) {
             Modal.createDialog(LogoutDialog);
+        } else {
+            defaultDispatcher.dispatch({ action: "logout" });
         }
 
         this.setState({ contextMenuPosition: null }); // also close the menu
     };
+
+    /**
+     * Checks if the `LogoutDialog` should be shown instead of the simple logout flow.
+     * The `LogoutDialog` will check the crypto recovery status of the account and
+     * help the user setup recovery properly if needed.
+     * @private
+     */
+    private async shouldShowLogoutDialog(): Promise<boolean> {
+        const cli = MatrixClientPeg.get();
+        const crypto = cli?.getCrypto();
+        if (!crypto) return false;
+
+        // If any room is encrypted, we need to show the advanced logout flow
+        const allRooms = cli!.getRooms();
+        for (const room of allRooms) {
+            const isE2e = await crypto.isEncryptionEnabledInRoom(room.roomId);
+            if (isE2e) return true;
+        }
+
+        return false;
+    }
 
     private onSignInClick = (): void => {
         defaultDispatcher.dispatch({ action: "start_login" });
@@ -295,7 +314,7 @@ export default class UserMenu extends React.Component<IProps, IState> {
             topSection = (
                 <div className="mx_UserMenu_contextMenu_header mx_UserMenu_contextMenu_guestPrompts">
                     {_t(
-                        "Got an account? <a>Sign in</a>",
+                        "auth|sign_in_prompt",
                         {},
                         {
                             a: (sub) => (
@@ -307,7 +326,7 @@ export default class UserMenu extends React.Component<IProps, IState> {
                     )}
                     {SettingsStore.getValue(UIFeature.Registration)
                         ? _t(
-                              "New here? <a>Create an account</a>",
+                              "auth|create_account_prompt",
                               {},
                               {
                                   a: (sub) => (
@@ -327,7 +346,7 @@ export default class UserMenu extends React.Component<IProps, IState> {
             homeButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_UserMenu_iconHome"
-                    label={_t("Home")}
+                    label={_t("common|home")}
                     onClick={this.onHomeClick}
                 />
             );
@@ -338,7 +357,7 @@ export default class UserMenu extends React.Component<IProps, IState> {
             feedbackButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_UserMenu_iconMessage"
-                    label={_t("Feedback")}
+                    label={_t("common|feedback")}
                     onClick={this.onProvideFeedback}
                 />
             );
@@ -349,24 +368,24 @@ export default class UserMenu extends React.Component<IProps, IState> {
                 {homeButton}
                 <IconizedContextMenuOption
                     iconClassName="mx_UserMenu_iconBell"
-                    label={_t("Notifications")}
+                    label={_t("notifications|enable_prompt_toast_title")}
                     onClick={(e) => this.onSettingsOpen(e, UserTab.Notifications)}
                 />
                 <IconizedContextMenuOption
                     iconClassName="mx_UserMenu_iconLock"
-                    label={_t("Security & Privacy")}
+                    label={_t("room_settings|security|title")}
                     onClick={(e) => this.onSettingsOpen(e, UserTab.Security)}
                 />
                 <IconizedContextMenuOption
                     iconClassName="mx_UserMenu_iconSettings"
-                    label={_t("All settings")}
+                    label={_t("user_menu|settings")}
                     onClick={(e) => this.onSettingsOpen(e)}
                 />
                 {feedbackButton}
                 <IconizedContextMenuOption
                     className="mx_IconizedContextMenu_option_red"
                     iconClassName="mx_UserMenu_iconSignOut"
-                    label={_t("Sign out")}
+                    label={_t("action|sign_out")}
                     onClick={this.onSignOutClick}
                 />
             </IconizedContextMenuOptionList>
@@ -378,7 +397,7 @@ export default class UserMenu extends React.Component<IProps, IState> {
                     {homeButton}
                     <IconizedContextMenuOption
                         iconClassName="mx_UserMenu_iconSettings"
-                        label={_t("Settings")}
+                        label={_t("common|settings")}
                         onClick={(e) => this.onSettingsOpen(e)}
                     />
                     {feedbackButton}
@@ -410,11 +429,16 @@ export default class UserMenu extends React.Component<IProps, IState> {
                     <RovingAccessibleTooltipButton
                         className="mx_UserMenu_contextMenu_themeButton"
                         onClick={this.onSwitchThemeClick}
-                        title={this.state.isDarkTheme ? _t("Switch to light mode") : _t("Switch to dark mode")}
+                        title={
+                            this.state.isDarkTheme
+                                ? _t("user_menu|switch_theme_light")
+                                : _t("user_menu|switch_theme_dark")
+                        }
                     >
                         <img
                             src={require("../../../res/img/element-icons/roomlist/dark-light-mode.svg").default}
-                            alt={_t("Switch theme")}
+                            role="presentation"
+                            alt=""
                             width={16}
                         />
                     </RovingAccessibleTooltipButton>
@@ -446,9 +470,10 @@ export default class UserMenu extends React.Component<IProps, IState> {
         return (
             <div className="mx_UserMenu">
                 <ContextMenuButton
+                    className="mx_UserMenu_contextMenuButton"
                     onClick={this.onOpenMenuClick}
-                    inputRef={this.buttonRef}
-                    label={_t("User menu")}
+                    ref={this.buttonRef}
+                    label={_t("a11y|user_menu")}
                     isExpanded={!!this.state.contextMenuPosition}
                     onContextMenu={this.onContextMenu}
                 >
@@ -457,9 +482,7 @@ export default class UserMenu extends React.Component<IProps, IState> {
                             idName={userId}
                             name={displayName}
                             url={avatarUrl}
-                            width={avatarSize}
-                            height={avatarSize}
-                            resizeMethod="crop"
+                            size={avatarSize + "px"}
                             className="mx_UserMenu_userAvatar_BaseAvatar"
                         />
                         {liveAvatarAddon}

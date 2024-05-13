@@ -399,7 +399,9 @@ export function bodyToHtml(content: IContent, highlights: Optional<string[]>, op
         "mx_EventTile_body": true,
         "mx_EventTile_bigEmoji": emojiBody,
         "markdown-body": isHtmlMessage && !emojiBody,
-        "translate": true,
+        "translate": true, // The translate class overrides the notranslate class that is in this element's ancestor.
+                           // The entire application currently has translation disabled using the notranslate class
+                           // placed in the div#matrixchat element.
     });
 
     let emojiBodyElements: JSX.Element[] | undefined;
